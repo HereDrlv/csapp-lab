@@ -283,8 +283,25 @@ int howManyBits(int x) {
  *   Max ops: 30
  *   Rating: 4
  */
+// sgn[1] exp[8] frac[23]
 unsigned floatScale2(unsigned uf) {
-  return 2;
+  // denormalized: left-shift; overflow: origin value; normalized: exponent++;
+  // exponent add 1
+  // [1] [8] [23]
+  // printf("uf: 0x%10x \n", uf);
+  int uf_sign = (1 << 31) & uf;
+  int zero_mask = ~(1 << 31); // Fmax
+  int frac_mask = (1 << 23) - 1;
+  int exponent_mask = zero_mask ^ frac_mask;
+  // printf("zero_mask: 0x%10x \n", zero_mask);
+  // printf("frac_mask: 0x%10x \n", frac_mask);
+  // printf("exponent_mask: 0x%10x \n", exponent_mask);
+  if (!((uf & exponent_mask) ^ 0)) // denormalized (including +-zero)
+    return (uf << 1) + uf_sign; // left-shift with sign
+  else if (! ((uf & exponent_mask) ^ exponent_mask)) // exponent overflow
+    return uf;
+  else // normalized
+    return uf + (1<<23);
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -293,7 +310,7 @@ unsigned floatScale2(unsigned uf) {
  *   it is to be interpreted as the bit-level representation of a
  *   single-precision floating point value.
  *   Anything out of range (including NaN and infinity) should return
- *   0x80000000u.
+ *   0x80000000u. 
  *   Legal ops: Any integer/unsigned operations incl. ||, &&. also if, while
  *   Max ops: 30
  *   Rating: 4
