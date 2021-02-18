@@ -298,7 +298,7 @@ unsigned floatScale2(unsigned uf) {
   // printf("exponent_mask: 0x%10x \n", exponent_mask);
   if (!((uf & exponent_mask) ^ 0)) // denormalized (including +-zero)
     return (uf << 1) + uf_sign; // left-shift with sign
-  else if (! ((uf & exponent_mask) ^ exponent_mask)) // exponent overflow
+  else if (! ((uf & exponent_mask) ^ exponent_mask)) // overflow or NaN (exponent full of 1)
     return uf;
   else // normalized
     return uf + (1<<23);
@@ -316,7 +316,31 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  int uf_sign = (1 << 31) & uf;
+  int zero_mask = ~(1 << 31); // Fmax
+  int frac_mask = (1 << 23) - 1;
+  int exponent_mask = zero_mask ^ frac_mask;
+
+  int normal_M = (uf & frac_mask) + (1 << 23); // the true value is "normal_M >> 23"
+  int exponent = (uf & exponent_mask) >> 23;
+  // printf("uf: %8x, exponent: %4x, normal_M: %8x \n", uf, exponent, normal_M);
+  if (!((uf & exponent_mask) ^ 0)) // denormalized (including +-zero)
+    return 0;
+  else if (! ((uf & exponent_mask) ^ exponent_mask)) // NaN (exponent full of 1)
+    return 1 << 31; // 0x80000000u
+  else  // normalzied. -sign * (1 + 0.ffffff) * 2^(-8 + exponent)
+    // printf("actual bias: %d\n", 0x7f + 23 - exponent);
+    // printf("  %6x, %6x \n", normal_M << (exponent - 0x7f), normal_M << (exponent - 0x7f) >> 23);
+    if (exponent - 0x7f - 23 > 0) {
+      if (exponent - 0x7f - 23 > 8)   return 1 << 31; // overflow
+      normal_M = normal_M << (exponent - 0x7f - 23);
+    } else if (0x7f + 23 - exponent > 31) // right shift beyond word length
+      return 0;
+    else {
+      normal_M = normal_M >> (0x7f + 23 - exponent);
+    }
+    if (uf_sign)  return -normal_M;
+    else          return normal_M;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
