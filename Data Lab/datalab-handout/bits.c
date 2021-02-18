@@ -356,7 +356,18 @@ int floatFloat2Int(unsigned uf) {
  *   Legal ops: Any integer/unsigned operations incl. ||, &&. Also if, while 
  *   Max ops: 30 
  *   Rating: 4
- */
+ */ERROR: Test floatPower2 failed.
+  Timed out after 10 secs (probably infinite loop)
 unsigned floatPower2(int x) {
-    return 2;
-}
+    // for denormalized: frac << 1
+    // for normalized: exponent + 1
+    // floatMin = 1 / 2^149
+    // printf("x: %8x \n", x);
+    // if (x <= -149) return 0;// under denorm, right shift beyond wordlength
+    // if (x <= -126) return 1 << 23 >> (-x - 126); // denormalized 
+    // if (x <= 127)  return (x + 127) << 23; // normalized 
+    if ((x + 150) >> 31) return 0;// under denorm, right shift beyond wordlength
+    if ((x + 127) >> 31) return 1 << (x + 149); // denormalized 
+    if ((x + 1 + ~128) >> 31)  return (x + 127) << 23; // normalized 
+    return  0xff << 23; // +Inf
+} // NOTE: time limit exceeded. Must set time limit to 20
