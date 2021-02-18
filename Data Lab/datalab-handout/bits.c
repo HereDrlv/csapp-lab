@@ -165,7 +165,7 @@ int tmin(void) {
  */
 int isTmax(int x) {
   //  x == y -> !(x ^ y) 
-  return !(x ^ ((1<<31) - 1));
+  return !(x ^ ~(1<<31));
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
@@ -236,7 +236,11 @@ int isLessOrEqual(int x, int y) {
   // x == y || x == Tmin || x >= y 
   // return !(sign & (y + (1 + ~x))); // not work for x = Tmin
   // return !(x^y) | !(x^sign) | !(sign & (y + (1 + ~x))); // not work when y - x overflow
-  return !(x^y) | (!(x&sign ^ y&sign))&!(sign & (y + (1 + ~x))) | !!(x&sign) | !(y&sign) | !!(x&sign) & !(y&sign);
+  return (!(x^y)) |
+  ((!(x&sign ^ y&sign))&!(sign & (y + (1 + ~x)))) |
+  !!(x&sign) | 
+  (!(y&sign)) | 
+  (!!(x&sign) & !(y&sign));
 }
 //4
 /* 
@@ -324,23 +328,21 @@ int floatFloat2Int(unsigned uf) {
   int normal_M = (uf & frac_mask) + (1 << 23); // the true value is "normal_M >> 23"
   int exponent = (uf & exponent_mask) >> 23;
   // printf("uf: %8x, exponent: %4x, normal_M: %8x \n", uf, exponent, normal_M);
-  if (!((uf & exponent_mask) ^ 0)) // denormalized (including +-zero)
+  if (!((uf & exponent_mask) ^ 0))                    // denormalized (including +-zero)
     return 0;
-  else if (! ((uf & exponent_mask) ^ exponent_mask)) // NaN (exponent full of 1)
+  if (! ((uf & exponent_mask) ^ exponent_mask))  // NaN (exponent full of 1)
     return 1 << 31; // 0x80000000u
-  else  // normalzied. -sign * (1 + 0.ffffff) * 2^(-8 + exponent)
+  // else: normalzied. -sign * (1 + 0.ffffff) * 2^(-8 + exponent)
     // printf("actual bias: %d\n", 0x7f + 23 - exponent);
     // printf("  %6x, %6x \n", normal_M << (exponent - 0x7f), normal_M << (exponent - 0x7f) >> 23);
     if (exponent - 0x7f - 23 > 0) {
       if (exponent - 0x7f - 23 > 8)   return 1 << 31; // overflow
       normal_M = normal_M << (exponent - 0x7f - 23);
-    } else if (0x7f + 23 - exponent > 31) // right shift beyond word length
-      return 0;
-    else {
-      normal_M = normal_M >> (0x7f + 23 - exponent);
     }
+    if (0x7f + 23 - exponent > 31)    return 0;       // right shift beyond word length
+    normal_M = normal_M >> (0x7f + 23 - exponent);
     if (uf_sign)  return -normal_M;
-    else          return normal_M;
+    return normal_M;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
